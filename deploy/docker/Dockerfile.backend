@@ -30,8 +30,8 @@ ENV PATH=/root/.local/bin:$PATH
 COPY saas/backend/src /app/src
 COPY agents /app/agents
 
-# Create data directories
-RUN mkdir -p /app/data /app/metrics
+# Create data directories with proper permissions
+RUN mkdir -p /app/data /app/metrics && chmod 777 /app/data /app/metrics
 
 # Set Python path for imports
 ENV PYTHONPATH=/app/src

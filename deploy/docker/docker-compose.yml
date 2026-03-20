@@ -10,7 +10,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=sqlite:///app/data/twins.db
+      - DATABASE_URL=sqlite:////app/data/twins.db
       - LOG_LEVEL=info
       - TWIN_OVERSEER_ENABLED=true
       - TWIN_ARCHITECT_ENABLED=true
