@@ -16,6 +16,30 @@
 
 ---
 
+## 📸 界面预览
+
+### 控制台总览
+<p align="center">
+  <img src="docs/images/dashboard.png" alt="控制台总览" width="90%">
+</p>
+
+### Staff 视图
+<p align="center">
+  <img src="docs/images/staff.png" alt="Staff 视图" width="90%">
+</p>
+
+### 预算治理
+<p align="center">
+  <img src="docs/images/budget.png" alt="预算治理" width="90%">
+</p>
+
+### 优化提案
+<p align="center">
+  <img src="docs/images/proposals.png" alt="优化提案" width="90%">
+</p>
+
+---
+
 ## 👯 双子架构
 
 OpenClaw Twins 采用独特的**双 Agent 协作架构**：
