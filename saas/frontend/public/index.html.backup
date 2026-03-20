@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenClaw Agent OS - SaaS Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #f8fafc; }
+        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .card { background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .metric-value { font-size: 2rem; font-weight: 700; }
+        .sidebar { background: #1e293b; min-height: 100vh; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // 模拟API客户端
+        const mockAPI = {
+            async login(email, password) {
+                return {
+                    access_token: "mock_token_123",
+                    expires_in: 1800
+                };
+            },
+            
+            async getDashboardStats() {
+                return {
+                    total_agents: 5,
+                    total_calls_today: 128,
+                    success_rate: 92.5,
+                    active_proposals: 3
+                };
+            },
+            
+            async getAgentRankings() {
+                return [
+                    { id: "1", name: "wenyuan", efficiency_score: 12.5, success_rate: 0.95, grade: "A", calls: 45 },
+                    { id: "2", name: "shangqing", efficiency_score: 10.2, success_rate: 0.92, grade: "A", calls: 38 },
+                    { id: "3", name: "forge", efficiency_score: 8.7, success_rate: 0.88, grade: "B", calls: 25 },
+                    { id: "4", name: "job-agent", efficiency_score: 7.3, success_rate: 0.85, grade: "B", calls: 20 },
+                ];
+            },
+            
+            async getProposals() {
+                return [
+                    { id: "opt-1", title: "优化 wenyuan 的Prompt", proposal_type: "optimization", priority: "P1", status: "pending" },
+                    { id: "skill-1", title: "添加 web_scraper 技能", proposal_type: "new_skill", priority: "P2", status: "pending" },
+                    { id: "opt-2", title: "降低 archen 的Token消耗", proposal_type: "optimization", priority: "P0", status: "approved" },
+                ];
+            }
+        };
+
+        // 登录组件
+        function Login({ onLogin }) {
+            const [email, setEmail] = useState("");
+            const [password, setPassword] = useState("");
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                const token = await mockAPI.login(email, password);
+                localStorage.setItem("token", token.access_token);
+                onLogin();
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center gradient-bg">
+                    <div className="card p-8 w-full max-w-md">
+                        <h1 className="text-2xl font-bold mb-6 text-center">OpenClaw Agent OS</h1>
+                        <p className="text-gray-600 text-center mb-6">SaaS管理平台</p>
+                        
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">邮箱</label>
+                                <input
+                                    type="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                    placeholder="admin@example.com"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">密码</label>
+                                <input
+                                    type="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                    placeholder="********"
+                                />
+                            </div>
+                            <button
+                                type="submit"
+                                className="w-full gradient-bg text-white py-2 rounded-lg font-medium hover:opacity-90"
+                            >
+                                登录
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+
+        // Metric卡片组件
+        function MetricCard({ title, value, subtitle, trend }) {
+            return (
+                <div className="card p-6">
+                    <h3 className="text-sm font-medium text-gray-600 mb-2">{title}</h3>
+                    <div className="metric-value text-gray-900">{value}</div>
+                    {trend && (
+                        <div className={`text-sm mt-1 ${trend > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {trend > 0 ? '↑' : '↓'} {Math.abs(trend)}%
+                        </div>
+                    )}
+                    {subtitle && <div className="text-sm text-gray-500 mt-1">{subtitle}</div>}
+                </div>
+            );
+        }
+
+        // Agent排名组件
+        function AgentRankings({ rankings }) {
+            const getGradeColor = (grade) => {
+                const colors = { S: 'bg-purple-100 text-purple-800', A: 'bg-green-100 text-green-800', B: 'bg-blue-100 text-blue-800', C: 'bg-yellow-100 text-yellow-800' };
+                return colors[grade] || 'bg-gray-100 text-gray-800';
+            };
+
+            return (
+                <div className="card p-6">
+                    <h3 className="text-lg font-semibold mb-4">Agent效能排名</h3>
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead>
+                                <tr className="border-b">
+                                    <th className="text-left py-2 text-sm font-medium text-gray-600">排名</th>
+                                    <th className="text-left py-2 text-sm font-medium text-gray-600">Agent</th>
+                                    <th className="text-left py-2 text-sm font-medium text-gray-600">效能分</th>
+                                    <th className="text-left py-2 text-sm font-medium text-gray-600">成功率</th>
+                                    <th className="text-left py-2 text-sm font-medium text-gray-600">等级</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {rankings.map((agent, index) => (
+                                    <tr key={agent.id} className="border-b hover:bg-gray-50">
+                                        <td className="py-3">
+                                            {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}
+                                        </td>
+                                        <td className="py-3 font-medium">{agent.name}</td>
+                                        <td className="py-3">{agent.efficiency_score}</td>
+                                        <td className="py-3">{(agent.success_rate * 100).toFixed(0)}%</td>
+                                        <td className="py-3">
+                                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getGradeColor(agent.grade)}`}>
+                                                {agent.grade}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            );
+        }
+
+        // 提案列表组件
+        function Proposals({ proposals, onApprove }) {
+            const getPriorityColor = (priority) => {
+                const colors = { P0: 'bg-red-100 text-red-800', P1: 'bg-orange-100 text-orange-800', P2: 'bg-blue-100 text-blue-800' };
+                return colors[priority] || 'bg-gray-100 text-gray-800';
+            };
+
+            return (
+                <div className="card p-6">
+                    <h3 className="text-lg font-semibold mb-4">优化提案</h3>
+                    <div className="space-y-3">
+                        {proposals.map((proposal) => (
+                            <div key={proposal.id} className="border rounded-lg p-4 hover:shadow-md transition">
+                                <div className="flex items-start justify-between">
+                                    <div>
+                                        <h4 className="font-medium">{proposal.title}</h4>
+                                        <p className="text-sm text-gray-500 mt-1">类型: {proposal.proposal_type}</p>
+                                    </div>
+                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(proposal.priority)}`}>
+                                        {proposal.priority}
+                                    </span>
+                                </div>
+                                {proposal.status === 'pending' && (
+                                    <button
+                                        onClick={() => onApprove(proposal.id)}
+                                        className="mt-3 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700"
+                                    >
+                                        批准
+                                    </button>
+                                )}
+                                {proposal.status === 'approved' && (
+                                    <span className="mt-3 inline-block px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
+                                        已批准
+                                    </span>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        // 主Dashboard
+        function Dashboard({ onLogout }) {
+            const [stats, setStats] = useState(null);
+            const [rankings, setRankings] = useState([]);
+            const [proposals, setProposals] = useState([]);
+            const [activeTab, setActiveTab] = useState('overview');
+
+            useEffect(() => {
+                loadData();
+            }, []);
+
+            const loadData = async () => {
+                const [s, r, p] = await Promise.all([
+                    mockAPI.getDashboardStats(),
+                    mockAPI.getAgentRankings(),
+                    mockAPI.getProposals()
+                ]);
+                setStats(s);
+                setRankings(r);
+                setProposals(p);
+            };
+
+            const handleApprove = (id) => {
+                setProposals(proposals.map(p => 
+                    p.id === id ? { ...p, status: 'approved' } : p
+                ));
+            };
+
+            if (!stats) return <div className="flex items-center justify-center min-h-screen">加载中...</div>;
+
+            return (
+                <div className="flex min-h-screen">
+                    {/* 侧边栏 */}
+                    <div className="sidebar w-64 text-white p-6">
+                        <h1 className="text-xl font-bold mb-8">Agent OS</h1>
+                        <nav className="space-y-2">
+                            <button
+                                onClick={() => setActiveTab('overview')}
+                                className={`w-full text-left px-4 py-2 rounded-lg ${activeTab === 'overview' ? 'bg-purple-600' : 'hover:bg-gray-700'}`}
+                            >
+                                📊 总览
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('agents')}
+                                className={`w-full text-left px-4 py-2 rounded-lg ${activeTab === 'agents' ? 'bg-purple-600' : 'hover:bg-gray-700'}`}
+                            >
+                                🤖 Agents
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('proposals')}
+                                className={`w-full text-left px-4 py-2 rounded-lg ${activeTab === 'proposals' ? 'bg-purple-600' : 'hover:bg-gray-700'}`}
+                            >
+                                💡 提案
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('settings')}
+                                className={`w-full text-left px-4 py-2 rounded-lg ${activeTab === 'settings' ? 'bg-purple-600' : 'hover:bg-gray-700'}`}
+                            >
+                                ⚙️ 设置
+                            </button>
+                        </nav>
+                        <button
+                            onClick={onLogout}
+                            className="absolute bottom-6 left-6 px-4 py-2 text-sm text-gray-400 hover:text-white"
+                        >
+                            退出登录
+                        </button>
+                    </div>
+
+                    {/* 主内容 */}
+                    <div className="flex-1 p-8">
+                        <div className="mb-8">
+                            <h2 className="text-2xl font-bold text-gray-900">Dashboard</h2>
+                            <p className="text-gray-600">实时监控您的Agent系统</p>
+                        </div>
+
+                        {/* 指标卡片 */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                            <MetricCard title="活跃Agent" value={stats.total_agents} subtitle="总数" trend={10} />
+                            <MetricCard title="今日调用" value={stats.total_calls_today} subtitle="次数" trend={25} />
+                            <MetricCard title="成功率" value={`${stats.success_rate}%`} subtitle="平均" trend={5} />
+                            <MetricCard title="待处理提案" value={stats.active_proposals} subtitle="优化建议" />
+                        </div>
+
+                        {/* 主要内容区 */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            <AgentRankings rankings={rankings} />
+                            <Proposals proposals={proposals} onApprove={handleApprove} />
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // 主应用
+        function App() {
+            const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+            useEffect(() => {
+                const token = localStorage.getItem("token");
+                if (token) setIsLoggedIn(true);
+            }, []);
+
+            const handleLogin = () => setIsLoggedIn(true);
+            const handleLogout = () => {
+                localStorage.removeItem("token");
+                setIsLoggedIn(false);
+            };
+
+            return isLoggedIn ? <Dashboard onLogout={handleLogout} /> : <Login onLogin={handleLogin} />;
+        }
+
+        // 渲染
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

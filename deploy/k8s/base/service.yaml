@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: twins-backend
+  namespace: openclaw-twins
+  labels:
+    app: twins-backend
+spec:
+  selector:
+    app: twins-backend
+  ports:
+    - port: 8000
+      targetPort: 8000
+      name: http
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: twins-frontend
+  namespace: openclaw-twins
+  labels:
+    app: twins-frontend
+spec:
+  selector:
+    app: twins-frontend
+  ports:
+    - port: 80
+      targetPort: 80
+      name: http
+  type: ClusterIP

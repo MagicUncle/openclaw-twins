@@ -1,0 +1,70 @@
+# OpenClaw Twins - Docker Compose Configuration
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.backend
+    image: openclaw-twins-backend:${VERSION:-latest}
+    container_name: twins-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:///app/data/twins.db
+      - LOG_LEVEL=info
+      - TWIN_OVERSEER_ENABLED=true
+      - TWIN_ARCHITECT_ENABLED=true
+      - JWT_SECRET=${JWT_SECRET:-your-secret-key-change-in-production}
+    volumes:
+      - twins-data:/app/data
+      - twins-metrics:/app/metrics
+      - twins-agents:/app/agents
+    networks:
+      - twins-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.frontend
+    image: openclaw-twins-frontend:${VERSION:-latest}
+    container_name: twins-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - twins-network
+
+  # Optional: Redis for caching (future use)
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: twins-redis
+  #   restart: unless-stopped
+  #   volumes:
+  #     - redis-data:/data
+  #   networks:
+  #     - twins-network
+
+volumes:
+  twins-data:
+    driver: local
+  twins-metrics:
+    driver: local
+  twins-agents:
+    driver: local
+  # redis-data:
+  #   driver: local
+
+networks:
+  twins-network:
+    driver: bridge

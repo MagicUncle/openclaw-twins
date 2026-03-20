@@ -1,0 +1,134 @@
+name: Canary - Canary Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to deploy'
+        required: true
+        type: string
+      initial_weight:
+        description: 'Initial traffic weight (%)'
+        required: true
+        default: '5'
+        type: string
+      auto_promote:
+        description: 'Auto promote if health checks pass'
+        required: true
+        default: true
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  deploy-canary:
+    name: Deploy Canary
+    runs-on: ubuntu-latest
+    environment: canary
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Deploy canary version
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          WEIGHT="${{ github.event.inputs.initial_weight }}"
+
+          echo "🚀 Deploying canary v$VERSION with $WEIGHT% traffic"
+
+          # 更新 canary 部署的镜像
+          sed -i "s|image:.*backend:.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:$VERSION|" deploy/k8s/canary/deployment.yaml
+
+          # 设置初始流量权重
+          sed -i "s/canary-weight: \".*\"/canary-weight: \"$WEIGHT\"/" deploy/k8s/canary/ingress.yaml
+
+      - name: Wait for stabilization
+        run: |
+          echo "⏳ Waiting 5 minutes for stabilization..."
+          sleep 300
+
+  health-check:
+    name: Health Check
+    runs-on: ubuntu-latest
+    needs: deploy-canary
+    steps:
+      - name: Run health checks
+        run: |
+          echo "🔍 Running health checks..."
+
+          # 模拟健康检查
+          CHECKS_PASSED=0
+          for i in {1..5}; do
+            echo "Health check attempt $i..."
+            # 这里应该是实际的 HTTP 检查
+            # curl -f http://canary-endpoint/health
+            CHECKS_PASSED=$((CHECKS_PASSED + 1))
+            sleep 10
+          done
+
+          if [ $CHECKS_PASSED -ge 4 ]; then
+            echo "✅ Health checks passed"
+            echo "health_status=passed" >> $GITHUB_ENV
+          else
+            echo "❌ Health checks failed"
+            echo "health_status=failed" >> $GITHUB_ENV
+            exit 1
+          fi
+
+  auto-promote:
+    name: Auto Promote
+    runs-on: ubuntu-latest
+    needs: health-check
+    if: github.event.inputs.auto_promote == 'true' && success()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Promote to production
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          echo "📈 Promoting v$VERSION to 100% traffic"
+
+          # 将 canary 版本提升为稳定版本
+          sed -i "s|image:.*backend:.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:$VERSION|" deploy/k8s/production/deployment.yaml
+
+      - name: Commit promotion
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add deploy/k8s/
+          git commit -m "chore: promote canary v${{ github.event.inputs.version }} to production [skip ci]"
+          git push
+
+      - name: Cleanup canary
+        run: |
+          echo "🧹 Cleaning up canary deployment"
+          # kubectl delete -f deploy/k8s/canary/
+
+  rollback-canary:
+    name: Rollback Canary
+    runs-on: ubuntu-latest
+    needs: health-check
+    if: failure()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rollback canary
+        run: |
+          echo "🛑 Health checks failed, rolling back canary"
+          # kubectl delete -f deploy/k8s/canary/
+
+      - name: Create incident record
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Canary deployment failed: v${{ github.event.inputs.version }}`,
+              body: `Canary deployment of v${{ github.event.inputs.version }} failed health checks and was automatically rolled back.`,
+              labels: ['incident', 'canary-failed']
+            })

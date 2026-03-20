@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenClaw Agent OS - 完整系统控制台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', 'Microsoft YaHei', sans-serif; background: #f8fafc; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .metric-value { font-size: 2rem; font-weight: 700; }
+        .sidebar { background: #1e293b; min-height: 100vh; }
+        .badge { display: inline-flex; align-items: center; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+        .badge-red { background: #fee2e2; color: #991b1b; }
+        .badge-yellow { background: #fef3c7; color: #92400e; }
+        .badge-green { background: #d1fae5; color: #065f46; }
+        .badge-blue { background: #dbeafe; color: #1e40af; }
+        .badge-purple { background: #f3e8ff; color: #7c3aed; }
+        .progress-bar { height: 8px; border-radius: 4px; background: #e5e7eb; overflow: hidden; }
+        .progress-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+        .explanation { font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem; }
+        .section-title { font-size: 1.125rem; font-weight: 600; margin-bottom: 1rem; display: flex; align-items: center; }
+        .section-title .icon { margin-right: 0.5rem; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useCallback } = React;
+        
+        // 工具函数：美元转人民币
+        const toRMB = (usd) => {
+            if (!usd) return "¥0.00";
+            return "¥" + (usd * 7.2).toFixed(2);
+        };
+        
+        // 工具函数：格式化token数量
+        const formatTokens = (tokens) => {
+            if (!tokens) return "0";
+            if (tokens >= 1000000) return (tokens / 1000000).toFixed(1) + "M";
+            if (tokens >= 1000) return (tokens / 1000).toFixed(1) + "K";
+            return tokens.toString();
+        };
+        
+        // 工具函数：状态解释
+        const getStatusText = (status) => {
+            const map = {
+                "running": "🟢 正在执行",
+                "idle": "⚫ 空闲",
+                "blocked": "🚫 被阻塞",
+                "error": "❌ 错误",
+                "queued": "⏳ 排队中",
+                "healthy": "✅ 健康",
+                "warning": "⚠️ 警告"
+            };
+            return map[status] || status;
+        };
+        
+        // ============ Dashboard组件 ============
+        function Dashboard() {
+            const [activeTab, setActiveTab] = useState("overview");
+            const [data, setData] = useState(null);
+            const [systemStatus, setSystemStatus] = useState(null);
+            const [lastUpdate, setLastUpdate] = useState(new Date());
+            const [heartbeatCount, setHeartbeatCount] = useState(0);
+            const [loading, setLoading] = useState(true);
+            
+            // 数据采集（1小时心跳）
+            const fetchData = useCallback(async () => {
+                try {
+                    // 并行获取数据
+                    const [snapshotRes, systemRes] = await Promise.all([
+                        fetch('/api/v1/system/snapshot').catch(() => null),
+                        fetch('/api/v1/system/status').catch(() => null)
+                    ]);
+                    
+                    if (snapshotRes && snapshotRes.ok) {
+                        const snapshot = await snapshotRes.json();
+                        setData(snapshot);
+                    }
+                    
+                    if (systemRes && systemRes.ok) {
+                        const system = await systemRes.json();
+                        setSystemStatus(system);
+                    } else {
+                        // 使用模拟数据
+                        setSystemStatus({
+                            overseer: {
+                                agent_name: "Overseer (监控优化师)",
+                                status: "running",
+                                total_executions: 3,
+                                schedule: "每12小时自动执行",
+                                capabilities: [
+                                    "自动采集所有Agent活动数据",
+                                    "计算效能评分和分级",
+                                    "生成监控报告",
+                                    "识别异常和瓶颈"
+                                ],
+                                health: "healthy"
+                            },
+                            architect: {
+                                agent_name: "Architect (进化导师)",
+                                status: "running",
+                                proposals: { total: 10, pending: 0, approved: 1, applied: 1 },
+                                schedule: "每天9:00自动执行",
+                                capabilities: [
+                                    "读取Overseer报告识别能力缺口",
+                                    "搜索外部最佳实践",
+                                    "生成优化提案",
+                                    "自动部署（需审批）",
+                                    "持续学习沉淀"
+                                ],
+                                health: "healthy"
+                            },
+                            system_health: {
+                                auto_monitoring_enabled: true,
+                                auto_evolution_enabled: true
+                            }
+                        });
+                    }
+                    
+                    setLastUpdate(new Date());
+                    setHeartbeatCount(prev => prev + 1);
+                    setLoading(false);
+                } catch (error) {
+                    console.log('数据获取失败，使用本地数据');
+                    setLoading(false);
+                }
+            }, []);
+            
+            // 1小时心跳
+            useEffect(() => {
+                fetchData();
+                const interval = setInterval(fetchData, 3600000); // 1小时 = 3600000ms
+                return () => clearInterval(interval);
+            }, [fetchData]);
+            
+            if (loading) return <div className="flex items-center justify-center min-h-screen text-xl">⏳ 加载系统数据...</div>;
+            
+            // ============ Overview页面 ============
+            const OverviewPage = () => {
+                const summary = data?.summary || {};
+                const alerts = data?.alerts || [];
+                
+                return (
+                    <div>
+                        {/* 核心系统状态卡片 */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                            {/* Overseer卡片 */}
+                            {systemStatus?.overseer && (
+                                <div className="card p-6 border-l-4 border-blue-500">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className="flex items-center">
+                                            <span className="text-2xl mr-3">📊</span>
+                                            <div>
+                                                <h3 className="font-bold text-lg">Overseer</h3>
+                                                <p className="text-sm text-gray-500">监控优化师</p>
+                                            </div>
+                                        </div>
+                                        <span className={`badge ${systemStatus.overseer.health === 'healthy' ? 'badge-green' : 'badge-yellow'}`}>
+                                            {getStatusText(systemStatus.overseer.status)}
+                                        </span>
+                                    </div>
+                                    
+                                    <div className="space-y-2 text-sm">
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-600">总执行次数</span>
+                                            <span className="font-medium">{systemStatus.overseer.total_executions} 次</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-600">执行周期</span>
+                                            <span className="font-medium">{systemStatus.overseer.schedule}</span>
+                                        </div>
+                                        <div className="mt-3 pt-3 border-t">
+                                            <p className="text-xs text-gray-500 mb-2">核心能力：</p>
+                                            <div className="flex flex-wrap gap-1">
+                                                {systemStatus.overseer.capabilities.map((cap, i) => (
+                                                    <span key={i} className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded">{cap}</span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                            
+                            {/* Architect卡片 */}
+                            {systemStatus?.architect && (
+                                <div className="card p-6 border-l-4 border-purple-500">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className="flex items-center">
+                                            <span className="text-2xl mr-3">🏗️</span>
+                                            <div>
+                                                <h3 className="font-bold text-lg">Architect</h3>
+                                                <p className="text-sm text-gray-500">进化导师</p>
+                                            </div>
+                                        </div>
+                                        <span className={`badge ${systemStatus.architect.health === 'healthy' ? 'badge-green' : 'badge-yellow'}`}>
+                                            {getStatusText(systemStatus.architect.status)}
+                                        </span>
+                                    </div>
+                                    
+                                    <div className="space-y-2 text-sm">
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-600">生成提案</span>
+                                            <span className="font-medium">{systemStatus.architect.proposals.total} 个</span>
+                                        </div>
+                                        <div className="flex justify-between text-xs">
+                                            <span className="text-gray-500">待处理/已批准/已应用</span>
+                                            <span>{systemStatus.architect.proposals.pending}/{systemStatus.architect.proposals.approved}/{systemStatus.architect.proposals.applied}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-600">执行周期</span>
+                                            <span className="font-medium">{systemStatus.architect.schedule}</span>
+                                        </div>
+                                        
+                                        <div className="mt-3 pt-3 border-t">
+                                            <p className="text-xs text-gray-500 mb-2">核心能力：</p>
+                                            <div className="flex flex-wrap gap-1">
+                                                {systemStatus.architect.capabilities.slice(0,3).map((cap, i) => (
+                                                    <span key={i} className="text-xs bg-purple-50 text-purple-700 px-2 py-1 rounded">{cap}</span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        
+                        {/* 系统指标摘要 */}
+                        <div className="section-title">
+                            <span className="icon">📈</span>
+                            系统指标摘要
+                            <span className="ml-2 text-sm font-normal text-gray-500">（实时采集自OpenClaw）</span>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-8">
+                            <div className="card p-4 text-center">
+                                <div className="metric-value text-blue-600">{summary.session_count || 0}</div>
+                                <div className="text-sm text-gray-600">总Sessions</div>
+                                <div className="explanation">活跃会话数</div>
+                            </div>
+                            
+                            <div className="card p-4 text-center border-l-4 border-green-500">
+                                <div className="metric-value text-green-600">{summary.active_sessions || 0}</div>
+                                <div className="text-sm text-gray-600">活跃</div>
+                                <div className="explanation">正在执行</div>
+                            </div>
+                            
+                            <div className="card p-4 text-center border-l-4 border-yellow-500">
+                                <div className="metric-value text-yellow-600">{summary.blocked_sessions || 0}</div>
+                                <div className="text-sm text-gray-600">阻塞</div>
+                                <div className="explanation">等待资源</div>
+                            </div>
+                            
+                            <div className="card p-4 text-center border-l-4 border-red-500">
+                                <div className="metric-value text-red-600">{summary.error_sessions || 0}</div>
+                                <div className="text-sm text-gray-600">错误</div>
+                                <div className="explanation">需要处理</div>
+                            </div>
+                            
+                            <div className="card p-4 text-center border-l-4 border-orange-500">
+                                <div className="metric-value text-orange-600">{summary.pending_approvals || 0}</div>
+                                <div className="text-sm text-gray-600">待审批</div>
+                                <div className="explanation">等待确认</div>
+                            </div>
+                            
+                            <div className="card p-4 text-center border-l-4 border-purple-500">
+                                <div className="metric-value text-purple-600">{toRMB(summary.total_cost)}</div>
+                                <div className="text-sm text-gray-600">总成本</div>
+                                <div className="explanation">基于Token计算</div>
+                            </div>
+                        </div>
+                        
+                        {/* 告警 */}
+                        {alerts.length > 0 && (
+                            <div className="mb-8">
+                                <div className="section-title">
+                                    <span className="icon">⚠️</span>
+                                    系统告警 ({alerts.length})
+                                </div>
+                                <div className="space-y-2">
+                                    {alerts.map((alert, idx) => (
+                                        <div key={idx} className={`card p-4 border-l-4 ${
+                                            alert.level === 'action-required' ? 'border-red-500 bg-red-50' :
+                                            alert.level === 'warn' ? 'border-yellow-500 bg-yellow-50' :
+                                            'border-blue-500 bg-blue-50'
+                                        }`}>
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center">
+                                                    <span className={`badge mr-2 ${
+                                                        alert.level === 'action-required' ? 'badge-red' :
+                                                        alert.level === 'warn' ? 'badge-yellow' :
+                                                        'badge-blue'
+                                                    }`}>
+                                                        {alert.level === 'action-required' ? '需处理' : alert.level === 'warn' ? '警告' : '信息'}
+                                                    </span>
+                                                    <span className="font-medium">{alert.code}</span>
+                                                </div>
+                                                {alert.count > 0 && <span className="text-sm text-gray-500">数量: {alert.count}</span>}
+                                            </div>
+                                            <p className="mt-2 text-gray-700">{alert.message}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        
+                        {/* 心跳信息 */}
+                        <div className="card p-4 bg-gray-50">
+                            <div className="flex items-center justify-between text-sm text-gray-600">
+                                <div>
+                                    💓 系统心跳: 每1小时确认 | 已确认 {heartbeatCount} 次
+                                </div>
+                                <div>
+                                    最后更新: {lastUpdate.toLocaleString('zh-CN')}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+            
+            // 渲染主界面
+            return (
+                <div className="flex min-h-screen">
+                    {/* 侧边栏 */}
+                    <div className="sidebar w-64 text-white p-6 flex flex-col">
+                        <div className="mb-8">
+                            <h1 className="text-xl font-bold">OpenClaw OS</h1>
+                            <p className="text-sm text-gray-400 mt-1">自驱动Agent系统</p>
+                        </div>
+                        
+                        <nav className="space-y-2 flex-1">
+                            {[
+                                { id: "overview", label: "📊 系统概览", desc: "监控+进化状态" },
+                                { id: "staff", label: "👥 Staff视图", desc: "Agent工作状态" },
+                                { id: "budget", label: "💰 预算治理", desc: "成本与配额" },
+                                { id: "proposals", label: "💡 优化提案", desc: "自进化建议" }
+                            ].map((item) => (
+                                <button
+                                    key={item.id}
+                                    onClick={() => setActiveTab(item.id)}
+                                    className={`w-full text-left px-4 py-3 rounded-lg transition ${
+                                        activeTab === item.id 
+                                            ? 'bg-purple-600 text-white' 
+                                            : 'text-gray-300 hover:bg-gray-700'
+                                    }`}
+                                >
+                                    <div className="font-medium">{item.label}</div>
+                                    <div className={`text-xs ${activeTab === item.id ? 'text-purple-200' : 'text-gray-500'}`}>
+                                        {item.desc}
+                                    </div>
+                                </button>
+                            ))}
+                        </nav>
+                        
+                        <div className="mt-auto pt-6 border-t border-gray-700 text-sm text-gray-400">
+                            <div>💓 心跳确认: {heartbeatCount}</div>
+                            <div className="mt-1">周期: 1小时</div>
+                        </div>
+                    </div>
+                    
+                    {/* 主内容区 */}
+                    <div className="flex-1 p-8 overflow-auto">
+                        {activeTab === "overview" && <OverviewPage />}
+                        {activeTab === "staff" && <StaffPage data={data} />}
+                        {activeTab === "budget" && <BudgetPage data={data} />}
+                        {activeTab === "proposals" && <ProposalsPage data={data} systemStatus={systemStatus} />}
+                    </div>
+                </div>
+            );
+        }
+        
+        // ============ Staff页面 ============
+        const StaffPage = ({ data }) => {
+            const sessions = data?.sessions || [];
+            
+            const sessionsByAgent = sessions.reduce((acc, s) => {
+                if (!acc[s.agent_id]) acc[s.agent_id] = [];
+                acc[s.agent_id].push(s);
+                return acc;
+            }, {});
+            
+            return (
+                <div>
+                    <div className="section-title">
+                        <span className="icon">👥</span>
+                        Staff 视图
+                        <span className="ml-2 text-sm font-normal text-gray-500">区分真正工作 vs 仅排队</span>
+                    </div>
+                    
+                    <div className="space-y-4">
+                        {Object.entries(sessionsByAgent).map(([agentId, agentSessions]) => {
+                            const activeCount = agentSessions.filter(s => s.state === 'running').length;
+                            const totalTokens = agentSessions.reduce((sum, s) => sum + (s.tokens_total || 0), 0);
+                            const totalCost = agentSessions.reduce((sum, s) => sum + (s.cost || 0), 0);
+                            
+                            return (
+                                <div key={agentId} className="card overflow-hidden">
+                                    <div className="bg-gray-50 px-6 py-4 border-b flex justify-between items-center">
+                                        <div className="flex items-center">
+                                            <span className="text-2xl mr-3">{activeCount > 0 ? '⚡' : '💤'}</span>
+                                            <div>
+                                                <h3 className="font-bold text-lg">{agentId}</h3>
+                                                <p className="text-sm text-gray-500">
+                                                    {agentSessions.length} sessions | 
+                                                    活跃: {activeCount} | 
+                                                    Tokens: {formatTokens(totalTokens)} | 
+                                                    成本: {toRMB(totalCost)}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <span className={`badge ${activeCount > 0 ? 'badge-green' : 'badge-gray'}`}>
+                                            {activeCount > 0 ? '真正活跃' : '空闲/排队'}
+                                        </span>
+                                    </div>
+                                    
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-sm">
+                                            <thead className="bg-gray-50 text-gray-600">
+                                                <tr>
+                                                    <th className="text-left py-3 px-6">Session</th>
+                                                    <th className="text-left py-3 px-6">状态</th>
+                                                    <th className="text-right py-3 px-6">Tokens</th>
+                                                    <th className="text-right py-3 px-6">成本</th>
+                                                    <th className="text-right py-3 px-6">消息</th>
+                                                    <th className="text-left py-3 px-6">说明</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {agentSessions.map((s) => (
+                                                    <tr key={s.session_key} className="border-b hover:bg-gray-50">
+                                                        <td className="py-3 px-6 font-mono text-xs">{s.session_key.substring(0, 20)}...</td>
+                                                        <td className="py-3 px-6">
+                                                            <span className={`badge ${
+                                                                s.state === 'running' ? 'badge-green' :
+                                                                s.state === 'error' ? 'badge-red' :
+                                                                s.state === 'blocked' ? 'badge-yellow' :
+                                                                'badge-blue'
+                                                            }`}>
+                                                                {getStatusText(s.state)}
+                                                            </span>
+                                                        </td>
+                                                        <td className="py-3 px-6 text-right font-mono">{formatTokens(s.tokens_total)}</td>
+                                                        <td className="py-3 px-6 text-right font-mono">{toRMB(s.cost)}</td>
+                                                        <td className="py-3 px-6 text-right">{s.message_count}</td>
+                                                        <td className="py-3 px-6 text-xs text-gray-500">
+                                                            {s.errors?.length > 0 ? <span className="text-red-600">{s.errors.length}个错误</span> : '运行正常'}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
+        };
+        
+        // ============ Budget页面 ============
+        const BudgetPage = ({ data }) => {
+            const budget = data?.budget || {};
+            const metrics = budget.metrics || [];
+            
+            return (
+                <div>
+                    <div className="section-title">
+                        <span className="icon">💰</span>
+                        预算治理
+                        <span className="ml-2 text-sm font-normal text-gray-500">成本控制与配额管理</span>
+                    </div>
+                    
+                    <div className="card p-6 mb-6 bg-gradient-to-r from-purple-50 to-blue-50">
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <p className="text-sm text-gray-600 mb-1">总预估成本</p>
+                                <p className="explanation">基于Token消耗 × 单价计算</p>
+                            </div>
+                            <div className="text-4xl font-bold text-purple-600">{toRMB(budget.total_cost)}</div>
+                        </div>
+                    </div>
+                    
+                    <div className="card overflow-hidden">
+                        <table className="w-full">
+                            <thead className="bg-gray-50">
+                                <tr>
+                                    <th className="text-left py-4 px-6">Agent</th>
+                                    <th className="text-right py-4 px-6">已用Tokens</th>
+                                    <th className="text-right py-4 px-6">配额</th>
+                                    <th className="text-right py-4 px-6">使用率</th>
+                                    <th className="text-right py-4 px-6">预估成本</th>
+                                    <th className="text-center py-4 px-6">状态</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {metrics.map((m) => (
+                                    <tr key={m.scope_id} className="border-b hover:bg-gray-50">
+                                        <td className="py-4 px-6 font-medium">{m.scope_id}</td>
+                                        <td className="py-4 px-6 text-right font-mono">{formatTokens(m.used)}</td>
+                                        <td className="py-4 px-6 text-right font-mono text-gray-500">{formatTokens(m.limit)}</td>
+                                        <td className="py-4 px-6 text-right">
+                                            <div className="flex items-center justify-end">
+                                                <div className="progress-bar w-24 mr-3">
+                                                    <div 
+                                                        className={`progress-fill ${
+                                                            m.usage_percent > 100 ? 'bg-red-500' :
+                                                            m.usage_percent > 80 ? 'bg-yellow-500' :
+                                                            'bg-green-500'
+                                                        }`}
+                                                        style={{width: `${Math.min(m.usage_percent, 100)}%`}}
+                                                    />
+                                                </div>
+                                                <span className={m.usage_percent > 100 ? 'text-red-600 font-bold' : 'text-gray-600'}>
+                                                    {m.usage_percent.toFixed(1)}%
+                                                </span>
+                                            </div>
+                                            <p className="explanation text-right">{m.usage_percent > 100 ? '已超配额！' : m.usage_percent > 80 ? '接近配额' : '正常'}</p>
+                                        </td>
+                                        <td className="py-4 px-6 text-right font-mono">{toRMB(m.estimated_cost)}</td>
+                                        <td className="py-4 px-6 text-center">
+                                            <span className={`badge ${
+                                                m.status === 'over' ? 'badge-red' :
+                                                m.status === 'warn' ? 'badge-yellow' :
+                                                'badge-green'
+                                            }`}>
+                                                {m.status === 'over' ? '超限' : m.status === 'warn' ? '警告' : '正常'}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            );
+        };
+        
+        // ============ Proposals页面 ============
+        const ProposalsPage = ({ data, systemStatus }) => {
+            const proposals = systemStatus?.architect?.proposals || {};
+            
+            return (
+                <div>
+                    <div className="section-title">
+                        <span className="icon">💡</span>
+                        优化提案
+                        <span className="ml-2 text-sm font-normal text-gray-500">Architect自动生成的自进化建议</span>
+                    </div>
+                    
+                    {/* 统计卡片 */}
+                    <div className="grid grid-cols-4 gap-4 mb-6">
+                        <div className="card p-4 text-center">
+                            <div className="text-3xl font-bold text-blue-600">{proposals.total || 0}</div>
+                            <div className="text-sm text-gray-600">总提案</div>
+                        </div>
+                        <div className="card p-4 text-center">
+                            <div className="text-3xl font-bold text-yellow-600">{proposals.pending || 0}</div>
+                            <div className="text-sm text-gray-600">待处理</div>
+                        </div>
+                        <div className="card p-4 text-center">
+                            <div className="text-3xl font-bold text-green-600">{proposals.approved || 0}</div>
+                            <div className="text-sm text-gray-600">已批准</div>
+                        </div>
+                        <div className="card p-4 text-center">
+                            <div className="text-3xl font-bold text-purple-600">{proposals.applied || 0}</div>
+                            <div className="text-sm text-gray-600">已应用</div>
+                        </div>
+                    </div>
+                    
+                    {/* 自进化流程说明 */}
+                    <div className="card p-6 mb-6 bg-gradient-to-r from-purple-50 to-blue-50">
+                        <h3 className="font-bold mb-4">🔄 自进化流程</h3>
+                        <div className="flex items-center justify-between">
+                            {[
+                                { icon: "📊", title: "监控", desc: "Overseer采集数据" },
+                                { icon: "🔍", title: "分析", desc: "识别能力缺口" },
+                                { icon: "💡", title: "生成", desc: "Architect创建提案" },
+                                { icon: "✅", title: "审批", desc: "用户确认" },
+                                { icon: "🚀", title: "部署", desc: "自动应用优化" }
+                            ].map((step, i) => (
+                                <div key={i} className="flex-1 text-center">
+                                    <div className="text-3xl mb-2">{step.icon}</div>
+                                    <div className="font-medium">{step.title}</div>
+                                    <div className="text-xs text-gray-500">{step.desc}</div>
+                                    {i < 4 && <div className="text-2xl text-gray-300 mt-2">→</div>}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    
+                    {/* 示例提案列表 */}
+                    <div className="card p-6">
+                        <h3 className="font-bold mb-4">近期提案</h3>
+                        
+                        <div className="space-y-3">
+                            <div className="p-4 border rounded-lg hover:shadow-md transition">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <span className="badge badge-green mr-2">已应用</span>
+                                        <span className="font-medium">优化 wenyuan 的Prompt</span>
+                                    </div>
+                                    <span className="text-sm text-gray-500">2026-03-19</span>
+                                </div>
+                                <p className="mt-2 text-sm text-gray-600">成功率偏低，建议添加Few-shot示例提升质量</p>
+                            </div>
+                            
+                            <div className="p-4 border rounded-lg hover:shadow-md transition">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <span className="badge badge-yellow mr-2">待处理</span>
+                                        <span className="font-medium">添加 web_scraper 技能</span>
+                                    </div>
+                                    <span className="text-sm text-gray-500">2026-03-19</span>
+                                </div>
+                                <p className="mt-2 text-sm text-gray-600">检测到频繁网页抓取需求，建议封装为专用技能</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+        
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<Dashboard />);
+    </script>
+</body>
+</html>

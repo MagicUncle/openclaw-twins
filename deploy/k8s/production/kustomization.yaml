@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: openclaw-twins
+
+bases:
+  - ../base
+
+patchesStrategicMerge:
+  - replicas-patch.yaml
+
+configMapGenerator:
+  - name: twins-config
+    behavior: merge
+    literals:
+      - LOG_LEVEL=warn
+      - TWIN_OVERSEER_ENABLED=true
+      - TWIN_ARCHITECT_ENABLED=true
+
+replicas:
+  - name: twins-backend
+    count: 3
+  - name: twins-frontend
+    count: 3

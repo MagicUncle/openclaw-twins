@@ -1,0 +1,8 @@
+{
+  "environment": "production",
+  "configured_at": "2026-03-19T23:49:31.789648",
+  "session_paths": [],
+  "auto_collect": true,
+  "collect_interval_hours": 12,
+  "metrics_retention_days": 30
+}

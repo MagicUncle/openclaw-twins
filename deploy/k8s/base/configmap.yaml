@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: twins-config
+  namespace: openclaw-twins
+data:
+  LOG_LEVEL: "info"
+  TWIN_OVERSEER_ENABLED: "true"
+  TWIN_ARCHITECT_ENABLED: "true"
+  DATABASE_URL: "sqlite:///app/data/twins.db"

@@ -1,0 +1,86 @@
+name: Backup - Data Backup
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # 每天 UTC 02:00 执行
+  workflow_dispatch:
+    inputs:
+      backup_type:
+        description: 'Backup type'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - config
+          - data
+
+env:
+  BACKUP_RETENTION_DAYS: 30
+
+jobs:
+  backup:
+    name: Create Backup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Create backup directory
+        run: mkdir -p backups/${{ github.run_id }}
+
+      - name: Backup configuration
+        run: |
+          echo "📝 Backing up configuration files..."
+          cp -r src/twins/backend/src/core backups/${{ github.run_id }}/
+          cp VERSION backups/${{ github.run_id }}/
+          echo "✅ Configuration backed up"
+
+      - name: Backup agents data
+        run: |
+          echo "🤖 Backing up agent configurations..."
+          cp -r src/agents/overseer/config backups/${{ github.run_id }}/overseer-config/ 2>/dev/null || true
+          cp -r src/agents/architect/config backups/${{ github.run_id }}/architect-config/ 2>/dev/null || true
+          echo "✅ Agent configs backed up"
+
+      - name: Create backup archive
+        run: |
+          BACKUP_NAME="openclaw-twins-backup-$(date +%Y%m%d-%H%M%S).tar.gz"
+          tar -czf $BACKUP_NAME -C backups/${{ github.run_id }} .
+          echo "backup_name=$BACKUP_NAME" >> $GITHUB_ENV
+          ls -lh $BACKUP_NAME
+
+      - name: Upload to GitHub Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.backup_name }}
+          path: ${{ env.backup_name }}
+          retention-days: ${{ env.BACKUP_RETENTION_DAYS }}
+
+      - name: Upload to S3 (if configured)
+        if: secrets.AWS_ACCESS_KEY_ID != ''
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+        run: |
+          pip install awscli
+          aws s3 cp ${{ env.backup_name }} s3://${{ secrets.S3_BACKUP_BUCKET }}/backups/
+          echo "✅ Backup uploaded to S3"
+
+  cleanup:
+    name: Cleanup Old Backups
+    runs-on: ubuntu-latest
+    needs: backup
+    steps:
+      - name: Delete old workflow runs
+        uses: Mattraks/delete-workflow-runs@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          retain_days: ${{ env.BACKUP_RETENTION_DAYS }}
+          keep_minimum_runs: 5

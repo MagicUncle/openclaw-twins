@@ -1,0 +1,9 @@
+# OpenClaw Agent OS - 生产监控任务
+# 每12小时执行Overseer数据采集
+0 */12 * * * cd /Users/magicuncle/.openclaw/workspace/agents/overseer && /Users/magicuncle/.openclaw/workspace/saas/venv/bin/python scripts/overseer.py >> /tmp/overseer.log 2>&1
+
+# 每天9点执行Architect分析
+0 9 * * * cd /Users/magicuncle/.openclaw/workspace/agents/architect && /Users/magicuncle/.openclaw/workspace/saas/venv/bin/python scripts/architect.py >> /tmp/architect.log 2>&1
+
+# 每天同步SaaS数据
+0 */6 * * * cd /Users/magicuncle/.openclaw/workspace/saas && /Users/magicuncle/.openclaw/workspace/saas/venv/bin/python -c "exec(open('production_setup.py').read()); sync_to_saas_from_reports()" >> /tmp/saas_sync.log 2>&1

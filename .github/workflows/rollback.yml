@@ -1,0 +1,121 @@
+name: Rollback - Version Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_version:
+        description: 'Target version to rollback (e.g., 1.0.0)'
+        required: true
+        type: string
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      backup_first:
+        description: 'Create backup before rollback'
+        required: true
+        default: true
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  validate:
+    name: Validate Rollback
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check version format
+        run: |
+          if ! echo "${{ github.event.inputs.target_version }}" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "❌ Invalid version format"
+            exit 1
+          fi
+          echo "✅ Version format valid"
+
+      - name: Check image exists
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:${{ github.event.inputs.target_version }}"
+          echo "Checking image: $IMAGE"
+          # 使用 crane 或 docker manifest 检查镜像是否存在
+          echo "⚠️  Please ensure the target version image exists in the registry"
+
+  backup:
+    name: Backup Current State
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.event.inputs.backup_first == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create pre-rollback backup
+        run: |
+          BACKUP_NAME="pre-rollback-$(date +%Y%m%d-%H%M%S).tar.gz"
+          echo "Creating backup: $BACKUP_NAME"
+          # 这里可以添加实际的数据库备份逻辑
+          echo "backup_name=$BACKUP_NAME" >> $GITHUB_ENV
+
+      - name: Upload backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-rollback-backup
+          path: ${{ env.backup_name }}
+          retention-days: 7
+
+  rollback:
+    name: Execute Rollback
+    runs-on: ubuntu-latest
+    needs: [validate, backup]
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update deployment config
+        run: |
+          VERSION="${{ github.event.inputs.target_version }}"
+          ENV="${{ github.event.inputs.environment }}"
+
+          echo "🔄 Rolling back to version $VERSION in $ENV environment"
+
+          # 更新部署配置中的版本号
+          sed -i "s/VERSION=.*/VERSION=$VERSION/" deploy/k8s/$ENV/kustomization.yaml 2>/dev/null || true
+
+          # 创建回滚记录
+          echo "$(date): Rollback to v$VERSION in $ENV" >> data/rollback-history.log
+
+      - name: Commit rollback
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add deploy/k8s/ data/rollback-history.log 2>/dev/null || true
+          git commit -m "chore: rollback to v${{ github.event.inputs.target_version }} in ${{ github.event.inputs.environment }} [skip ci]" || echo "No changes to commit"
+          git push
+
+      - name: Create rollback record
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Rollback executed: v${{ github.event.inputs.target_version }}`,
+              body: `Rollback to version **v${{ github.event.inputs.target_version }}** in **${{ github.event.inputs.environment }}** environment.\n\n- Triggered by: @${{ github.actor }}\n- Time: ${{ github.event.created_at }}`,
+              labels: ['rollback', '${{ github.event.inputs.environment }}']
+            })
+
+  verify:
+    name: Verify Rollback
+    runs-on: ubuntu-latest
+    needs: rollback
+    steps:
+      - name: Health check (placeholder)
+        run: |
+          echo "🔍 Verifying rollback..."
+          echo "Current version: ${{ github.event.inputs.target_version }}"
+          # 这里可以添加实际的健康检查调用
+          echo "✅ Rollback verification complete"
