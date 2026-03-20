@@ -93,7 +93,7 @@ jobs:
       - name: Build backend image
         uses: docker/build-push-action@v5
         with:
-          context: ./saas/backend
+          context: .
           file: ./deploy/docker/Dockerfile.backend
           push: false
           tags: openclaw-twins:backend-test

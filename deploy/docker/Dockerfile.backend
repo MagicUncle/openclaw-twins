@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
-COPY saas/backend/requirements.txt .
+COPY saas/backend/requirements.txt /app/
 RUN pip install --no-cache-dir --user -r requirements.txt
 
 # Production stage
@@ -22,8 +22,8 @@ COPY --from=builder /root/.local /root/.local
 ENV PATH=/root/.local/bin:$PATH
 
 # Copy application code
-COPY saas/backend/src ./src
-COPY agents ./agents
+COPY saas/backend/src /app/src
+COPY agents /app/agents
 
 # Create data directories
 RUN mkdir -p /app/data /app/metrics
