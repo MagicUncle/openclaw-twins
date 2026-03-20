@@ -52,13 +52,13 @@ jobs:
 
       - name: Install dependencies
         run: |
-          cd src/twins/backend
+          cd saas/backend
           pip install -r requirements.txt
           pip install pytest pytest-asyncio httpx
 
       - name: Run tests
         run: |
-          cd src/twins/backend
+          cd saas/backend
           pytest tests/ -v --tb=short
         continue-on-error: true
 
@@ -76,7 +76,7 @@ jobs:
 
       - name: Check frontend files exist
         run: |
-          test -f src/twins/frontend/public/index.html
+          test -f saas/frontend/public/index.html
           echo "✅ Frontend files verified"
 
   build-images:
@@ -93,7 +93,7 @@ jobs:
       - name: Build backend image
         uses: docker/build-push-action@v5
         with:
-          context: ./src/twins/backend
+          context: ./saas/backend
           file: ./deploy/docker/Dockerfile.backend
           push: false
           tags: openclaw-twins:backend-test
@@ -104,8 +104,8 @@ jobs:
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: openclaw-twins:backend-test
-          format: 'sarif'
-          output: 'trivy-results.sarif'
+          format: "sarif"
+          output: "trivy-results.sarif"
         continue-on-error: true
 
   integration-test:
