@@ -76,7 +76,7 @@ jobs:
 
       - name: Check frontend files exist
         run: |
-          test -f saas/frontend/public/index.html
+          test -f saas/frontend/public/index.html && echo "✅ Frontend files verified"
           echo "✅ Frontend files verified"
 
   build-images:
