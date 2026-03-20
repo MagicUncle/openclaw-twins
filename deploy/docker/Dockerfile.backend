@@ -33,12 +33,16 @@ COPY agents /app/agents
 # Create data directories
 RUN mkdir -p /app/data /app/metrics
 
+# Set Python path for imports
+ENV PYTHONPATH=/app/src
+
 # Expose port
 EXPOSE 8000
 
-# Health check - use curl instead of python, more reliable
-HEALTHCHECK --interval=10s --timeout=5s --start-period=120s --retries=10 \
+# Health check
+HEALTHCHECK --interval=10s --timeout=5s --start-period=60s --retries=5 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Run application with explicit path
-CMD ["/root/.local/bin/uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run application from src directory
+WORKDIR /app/src
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
