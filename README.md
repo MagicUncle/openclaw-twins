@@ -25,6 +25,16 @@
 
 ---
 
+## 📸 Dashboard Preview
+
+<p align="center">
+  <img src="docs/images/dashboard.png" alt="OpenClaw Twins Dashboard" width="85%">
+  <br>
+  <sub>Twin-Agent Control Center - Real-time Monitoring</sub>
+</p>
+
+---
+
 ## ✨ Features
 
 OpenClaw Twins is a **Twin-Agent Intelligence Platform** that brings self-monitoring and self-evolution to your AI agent systems.
@@ -233,4 +243,26 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 <p align="center">
   Built with ❤️ and 🤖 by the OpenClaw Twins Team
+</p>
+
+## 📸 Screenshots
+
+### Dashboard Overview
+<p align="center">
+  <img src="docs/images/dashboard.png" alt="Dashboard" width="90%">
+</p>
+
+### Staff View
+<p align="center">
+  <img src="docs/images/staff.png" alt="Staff View" width="90%">
+</p>
+
+### Budget Governance
+<p align="center">
+  <img src="docs/images/budget.png" alt="Budget" width="90%">
+</p>
+
+### Optimization Proposals
+<p align="center">
+  <img src="docs/images/proposals.png" alt="Proposals" width="90%">
 </p>
