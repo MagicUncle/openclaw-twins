@@ -118,7 +118,7 @@ jobs:
       - name: Start services
         run: |
           cd deploy/docker
-          docker-compose -f docker-compose.yml up -d --build
+          docker compose -f docker-compose.yml up -d --build
           sleep 30
 
       - name: Health check
