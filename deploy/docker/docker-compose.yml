@@ -21,13 +21,13 @@ services:
       - twins-agents:/app/agents
     networks:
       - twins-network
-    # Simple healthcheck with curl
+    # Simplified healthcheck
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 120s
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   frontend:
     build:
@@ -38,9 +38,9 @@ services:
     restart: unless-stopped
     ports:
       - "3000:80"
+    # Remove condition, just wait for backend to exist
     depends_on:
-      backend:
-        condition: service_healthy
+      - backend
     networks:
       - twins-network
 
