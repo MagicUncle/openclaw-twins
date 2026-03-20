@@ -1,6 +1,4 @@
 # OpenClaw Twins - Docker Compose Configuration
-version: "3.8"
-
 services:
   backend:
     build:
@@ -23,18 +21,13 @@ services:
       - twins-agents:/app/agents
     networks:
       - twins-network
+    # Simple healthcheck with curl
     healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 120s
 
   frontend:
     build:
@@ -51,16 +44,6 @@ services:
     networks:
       - twins-network
 
-  # Optional: Redis for caching (future use)
-  # redis:
-  #   image: redis:7-alpine
-  #   container_name: twins-redis
-  #   restart: unless-stopped
-  #   volumes:
-  #     - redis-data:/data
-  #   networks:
-  #     - twins-network
-
 volumes:
   twins-data:
     driver: local
@@ -68,8 +51,6 @@ volumes:
     driver: local
   twins-agents:
     driver: local
-  # redis-data:
-  #   driver: local
 
 networks:
   twins-network:
